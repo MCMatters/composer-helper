@@ -11,8 +11,8 @@ use McMatters\ComposerHelper\Output\ArrayOutput;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use const false, null, true, JSON_ERROR_NONE;
-use function array_merge, array_pop, file_exists, file_get_contents, ini_get,
-    ini_set, is_dir, is_readable, json_decode, json_last_error,
+use function array_merge, array_pop, dirname, file_exists, file_get_contents,
+    ini_get, ini_set, is_dir, is_readable, json_decode, json_last_error,
     json_last_error_msg, rtrim, set_time_limit, stripos, system;
 
 /**
@@ -49,8 +49,10 @@ class ComposerHelper
      *
      * @throws FileNotFoundException
      */
-    public function __construct(string $basePath = __DIR__.'/../../../..')
+    public function __construct(string $basePath = '')
     {
+        $basePath = $basePath ?: dirname(__DIR__, 4);
+
         $this->composer = new Application();
         $this->composer->setAutoExit(false);
 
@@ -134,9 +136,11 @@ class ComposerHelper
      *     'name' => string,
      *     'version' => 'string',
      *     'latest' => 'string',
-     *     'latest-status' => 'string', // Can be 'up-to-date', 'semver-safe-update', 'update-possible'
+     *     'latest-status' => 'string', // Can be 'up-to-date',
+     *     'semver-safe-update', 'update-possible'
      *     'description' => string,
      * ]
+     * @throws \Exception
      */
     public function getOutdated(): array
     {
@@ -162,7 +166,6 @@ class ComposerHelper
 
     /**
      * @return string
-     * @throws FileNotFoundException
      */
     public function getComposerConfigPath(): string
     {
