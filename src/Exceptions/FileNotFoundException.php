@@ -20,7 +20,6 @@ class FileNotFoundException extends Exception
      */
     public function __construct(string $additional = '')
     {
-        $message = 'File not found.'.($additional ? " {$additional}" : '');
-        parent::__construct($message);
+        parent::__construct('File not found.'.($additional ? " {$additional}" : ''));
     }
 }

@@ -31,12 +31,12 @@ class ArrayOutput extends Output
     }
 
     /**
-     * Writes a message to the output.
+     * @param string $message
+     * @param bool $newline
      *
-     * @param string $message A message to write to the output
-     * @param bool $newline Whether to add a newline or not
+     * @return void
      */
-    protected function doWrite($message, $newline)
+    protected function doWrite($message, $newline): void
     {
         $this->store[] = $message;
     }

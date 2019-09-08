@@ -10,10 +10,13 @@ use McMatters\ComposerHelper\Exceptions\FileNotFoundException;
 use McMatters\ComposerHelper\Output\ArrayOutput;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
-use const false, null, true, JSON_ERROR_NONE;
-use function array_merge, array_pop, dirname, file_exists, file_get_contents,
-    ini_get, ini_set, is_dir, is_readable, json_decode, json_last_error,
-    json_last_error_msg, rtrim, set_time_limit, stripos, system;
+
+use function array_merge, array_pop, array_unique, dirname, file_exists,
+    file_get_contents, ini_set, is_dir, is_readable, json_decode,
+    json_last_error, json_last_error_msg, preg_match, rtrim, set_time_limit,
+    stripos, system;
+
+use const false, true, JSON_ERROR_NONE;
 
 /**
  * Class ComposerHelper
@@ -28,7 +31,7 @@ class ComposerHelper
     protected $basePath;
 
     /**
-     * @var Application
+     * @var \Composer\Console\Application
      */
     protected $composer;
 
@@ -47,16 +50,14 @@ class ComposerHelper
      *
      * @param string $basePath
      *
-     * @throws FileNotFoundException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function __construct(string $basePath = '')
     {
-        $basePath = $basePath ?: dirname(__DIR__, 4);
-
         $this->composer = new Application();
         $this->composer->setAutoExit(false);
 
-        $this->basePath = rtrim($basePath, '/');
+        $this->basePath = rtrim($basePath ?: dirname(__DIR__, 4), '/');
         $this->checkFileExisting($this->getComposerConfigPath());
 
         $this->defaultVendorPath = "{$this->basePath}/vendor";
@@ -65,9 +66,10 @@ class ComposerHelper
 
     /**
      * @return array
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getComposerConfig(): array
     {
@@ -76,9 +78,10 @@ class ComposerHelper
 
     /**
      * @return array
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getRequirements(): array
     {
@@ -89,9 +92,10 @@ class ComposerHelper
 
     /**
      * @return array
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getDevRequirements(): array
     {
@@ -102,9 +106,10 @@ class ComposerHelper
 
     /**
      * @return array
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getAllRequirements(): array
     {
@@ -118,9 +123,10 @@ class ComposerHelper
 
     /**
      * @return array
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getAllInstalled(): array
     {
@@ -130,7 +136,6 @@ class ComposerHelper
     }
 
     /**
-     * @return array
      * Returns array with packages. The structure of a package:
      * [
      *     'name' => string,
@@ -140,28 +145,62 @@ class ComposerHelper
      *     'semver-safe-update', 'update-possible'
      *     'description' => string,
      * ]
+     *
+     * @return array
+     *
      * @throws \Exception
      */
     public function getOutdated(): array
     {
-        $this->longOperations();
+        $result = $this->runCommand('outdated', ['-q', '-n']);
 
-        $this->composer->doRun(
-            new ArrayInput([
-                'command' => 'outdated', '-q', '-n', '--format' => 'json'
-            ]),
-            $output = new ArrayOutput()
-        );
+        return $result['installed'] ?? [];
+    }
 
-        $store = $output->getStore();
+    /**
+     * @return array
+     *
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     */
+    public function getAllExtra(): array
+    {
+        $extra = [];
 
-        $json = array_pop($store);
+        foreach ($this->getAllInstalled() as $package) {
+            if (empty($package['extra'])) {
+                continue;
+            }
 
-        $this->longOperations(true);
+            $extra[$package['name']] = $package['extra'];
+        }
 
-        $content = json_decode($json, true);
+        return $extra;
+    }
 
-        return $content['installed'] ?? [];
+    /**
+     * @return array
+     *
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     */
+    public function getAllExtensionRequirements(): array
+    {
+        $requirements = [];
+
+        foreach ($this->getAllInstalled() as $package) {
+            foreach ($package['require'] ?? [] as $requirement => $version) {
+                if (preg_match('/^ext-(?<extension>[a-z0-9_]+)$/', $requirement, $match)) {
+                    $requirements[$match['extension']][] = $version;
+                }
+            }
+        }
+
+        foreach ($requirements as $extension => $versions) {
+            $requirements[$extension] = array_unique($versions);
+        }
+
+        return $requirements;
     }
 
     /**
@@ -174,9 +213,10 @@ class ComposerHelper
 
     /**
      * @return string
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getVendorPath(): string
     {
@@ -191,9 +231,10 @@ class ComposerHelper
 
     /**
      * @return string
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getBinaryPath(): string
     {
@@ -210,9 +251,10 @@ class ComposerHelper
      * @param string $bin
      *
      * @return string
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function getBinary(string $bin): string
     {
@@ -225,12 +267,39 @@ class ComposerHelper
     }
 
     /**
+     * @param string $command
+     * @param array $args
+     *
+     * @return array
+     *
+     * @throws \Exception
+     */
+    public function runCommand(string $command, array $args = []): array
+    {
+        $this->longOperations();
+
+        $args = array_merge(
+            ['command' => $command, '--format' => 'json', '-n', '-q'],
+            $args
+        );
+
+        $this->composer->doRun(new ArrayInput($args), $output = new ArrayOutput());
+
+        $store = $output->getStore();
+
+        $json = array_pop($store);
+
+        return json_decode($json, true);
+    }
+
+    /**
      * @param string $file
      *
      * @return array
-     * @throws RuntimeException
-     * @throws EmptyFileException
-     * @throws FileNotFoundException
+     *
+     * @throws \RuntimeException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     protected function getFileContent(string $file): array
     {
@@ -251,42 +320,29 @@ class ComposerHelper
         return $content;
     }
 
-
     /**
      * @param string $file
      *
-     * @throws FileNotFoundException
+     * @return void
+     *
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
-    protected function checkFileExisting(string $file)
+    protected function checkFileExisting(string $file): void
     {
         if (!file_exists($file) || !is_readable($file)) {
             throw new FileNotFoundException(
-                "File '{$file}' not found or you do not have permissions to read it"
+                "File '{$file}' not found or you do not have permissions to read it\n".
+                'Have you run composer install?'
             );
         }
     }
 
     /**
-     * @param bool $revert
+     * @return void
      */
-    protected function longOperations(bool $revert = false)
+    protected function longOperations(): void
     {
-        static $memory, $time;
-
-        if ($revert) {
-            if (null !== $memory) {
-                ini_set('memory_limit', $memory);
-            }
-
-            if (null !== $time) {
-                set_time_limit($time);
-            }
-        } else {
-            $memory = ini_get('memory_limit');
-            $time = ini_get('max_execution_time');
-
-            set_time_limit(0);
-            ini_set('memory_limit', '4096M');
-        }
+        set_time_limit(0);
+        ini_set('memory_limit', '4096M');
     }
 }
