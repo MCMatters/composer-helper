@@ -152,7 +152,7 @@ class ComposerHelper
      */
     public function getOutdated(): array
     {
-        $result = $this->runCommand('outdated', ['-q', '-n']);
+        $result = $this->runCommand('outdated');
 
         return $result['installed'] ?? [];
     }

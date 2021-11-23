@@ -36,7 +36,7 @@ class ArrayOutput extends Output
      *
      * @return void
      */
-    protected function doWrite($message, $newline): void
+    protected function doWrite(string $message, bool $newline): void
     {
         $this->store[] = $message;
     }
