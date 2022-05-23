@@ -11,12 +11,26 @@ use McMatters\ComposerHelper\Output\ArrayOutput;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 
-use function array_merge, array_pop, array_unique, dirname, file_exists,
-    file_get_contents, ini_set, is_dir, is_readable, json_decode,
-    json_last_error, json_last_error_msg, preg_match, rtrim, set_time_limit,
-    stripos, system;
+use function array_merge;
+use function array_pop;
+use function array_unique;
+use function dirname;
+use function file_exists;
+use function file_get_contents;
+use function is_dir;
+use function is_readable;
+use function json_decode;
+use function json_last_error;
+use function json_last_error_msg;
+use function preg_match;
+use function rtrim;
+use function stripos;
+use function system;
 
-use const false, true, JSON_ERROR_NONE;
+use const false;
+use const JSON_ERROR_NONE;
+use const PHP_OS_FAMILY;
+use const true;
 
 /**
  * Class ComposerHelper
@@ -258,7 +272,7 @@ class ComposerHelper
      */
     public function getBinary(string $bin): string
     {
-        $command = 0 === stripos(PHP_OS, 'win') ? 'where' : 'which';
+        $command = 0 === stripos(PHP_OS_FAMILY, 'win') ? 'where' : 'which';
         $binaryPath = $this->getBinaryPath();
 
         return file_exists("{$binaryPath}/{$bin}")
@@ -276,8 +290,6 @@ class ComposerHelper
      */
     public function runCommand(string $command, array $args = []): array
     {
-        $this->longOperations();
-
         $args = array_merge(
             ['command' => $command, '--format' => 'json', '-n', '-q'],
             $args
@@ -335,14 +347,5 @@ class ComposerHelper
                 'Have you run composer install?'
             );
         }
-    }
-
-    /**
-     * @return void
-     */
-    protected function longOperations(): void
-    {
-        set_time_limit(0);
-        ini_set('memory_limit', '4096M');
     }
 }
