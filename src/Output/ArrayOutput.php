@@ -6,21 +6,10 @@ namespace McMatters\ComposerHelper\Output;
 
 use Symfony\Component\Console\Output\Output;
 
-/**
- * Class ArrayOutput
- *
- * @package McMatters\ComposerHelper\Output
- */
 class ArrayOutput extends Output
 {
-    /**
-     * @var array
-     */
-    protected $store = [];
+    protected array $store = [];
 
-    /**
-     * @return array
-     */
     public function getStore(): array
     {
         $store = $this->store;
@@ -30,12 +19,6 @@ class ArrayOutput extends Output
         return $store;
     }
 
-    /**
-     * @param string $message
-     * @param bool $newline
-     *
-     * @return void
-     */
     protected function doWrite(string $message, bool $newline): void
     {
         $this->store[] = $message;

@@ -8,7 +8,6 @@ use Composer\Console\Application;
 use McMatters\ComposerHelper\Exceptions\EmptyFileException;
 use McMatters\ComposerHelper\Exceptions\FileNotFoundException;
 use McMatters\ComposerHelper\Output\ArrayOutput;
-use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 
 use function array_merge;
@@ -20,50 +19,27 @@ use function file_get_contents;
 use function is_dir;
 use function is_readable;
 use function json_decode;
-use function json_last_error;
-use function json_last_error_msg;
 use function preg_match;
 use function rtrim;
 use function stripos;
 use function system;
 
 use const false;
-use const JSON_ERROR_NONE;
+use const JSON_THROW_ON_ERROR;
 use const PHP_OS_FAMILY;
 use const true;
 
-/**
- * Class ComposerHelper
- *
- * @package McMatters\ComposerHelper
- */
 class ComposerHelper
 {
-    /**
-     * @var string
-     */
-    protected $basePath;
+    protected string $basePath;
+
+    protected Application $composer;
+
+    protected string $defaultVendorPath;
+
+    protected string $defaultBinPath;
 
     /**
-     * @var \Composer\Console\Application
-     */
-    protected $composer;
-
-    /**
-     * @var string
-     */
-    protected $defaultVendorPath;
-
-    /**
-     * @var string
-     */
-    protected $defaultBinPath;
-
-    /**
-     * ComposerHelper constructor.
-     *
-     * @param string $basePath
-     *
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     public function __construct(string $basePath = '')
@@ -72,80 +48,75 @@ class ComposerHelper
         $this->composer->setAutoExit(false);
 
         $this->basePath = rtrim($basePath ?: dirname(__DIR__, 4), '/');
-        $this->checkFileExisting($this->getComposerConfigPath());
+        $this->checkFileExisting($this->getComposerJsonPath());
 
         $this->defaultVendorPath = "{$this->basePath}/vendor";
         $this->defaultBinPath = "{$this->defaultVendorPath}/bin";
     }
 
     /**
-     * @return array
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
-    public function getComposerConfig(): array
+    public function getComposerJsonContent(): array
     {
-        return $this->getFileContent($this->getComposerConfigPath());
+        return $this->getFileContent($this->getComposerJsonPath());
     }
 
     /**
-     * @return array
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     public function getRequirements(): array
     {
-        $config = $this->getComposerConfig();
+        $config = $this->getComposerJsonContent();
 
         return $config['require'] ?? [];
     }
 
     /**
-     * @return array
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     public function getDevRequirements(): array
     {
-        $config = $this->getComposerConfig();
+        $config = $this->getComposerJsonContent();
 
         return $config['require-dev'] ?? [];
     }
 
     /**
-     * @return array
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     public function getAllRequirements(): array
     {
-        $config = $this->getComposerConfig();
+        $config = $this->getComposerJsonContent();
 
         return array_merge(
             $config['require'] ?? [],
-            $config['require-dev'] ?? []
+            $config['require-dev'] ?? [],
         );
     }
 
     /**
-     * @return array
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
-    public function getAllInstalled(): array
+    public function getInstalled(): array
     {
         return $this->getFileContent(
-            "{$this->defaultVendorPath}/composer/installed.json"
+            "{$this->defaultVendorPath}/composer/installed.json",
         );
     }
 
@@ -160,8 +131,6 @@ class ComposerHelper
      *     'description' => string,
      * ]
      *
-     * @return array
-     *
      * @throws \Exception
      */
     public function getOutdated(): array
@@ -172,37 +141,35 @@ class ComposerHelper
     }
 
     /**
-     * @return array
-     *
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
-    public function getAllExtra(): array
+    public function getExtras(): array
     {
-        $extra = [];
+        $extras = [];
 
-        foreach ($this->getAllInstalled() as $package) {
+        foreach ($this->getInstalled() as $package) {
             if (empty($package['extra'])) {
                 continue;
             }
 
-            $extra[$package['name']] = $package['extra'];
+            $extras[$package['name']] = $package['extra'];
         }
 
-        return $extra;
+        return $extras;
     }
 
     /**
-     * @return array
-     *
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
-    public function getAllExtensionRequirements(): array
+    public function getExtensionRequirements(): array
     {
         $requirements = [];
 
-        foreach ($this->getAllInstalled() as $package) {
+        foreach ($this->getInstalled() as $package) {
             foreach ($package['require'] ?? [] as $requirement => $version) {
                 if (preg_match('/^ext-(?<extension>[a-z0-9_]+)$/', $requirement, $match)) {
                     $requirements[$match['extension']][] = $version;
@@ -217,24 +184,20 @@ class ComposerHelper
         return $requirements;
     }
 
-    /**
-     * @return string
-     */
-    public function getComposerConfigPath(): string
+    public function getComposerJsonPath(): string
     {
         return "{$this->basePath}/composer.json";
     }
 
     /**
-     * @return string
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     public function getVendorPath(): string
     {
-        $config = $this->getComposerConfig();
+        $config = $this->getComposerJsonContent();
 
         if (!$config && !is_dir($this->defaultVendorPath)) {
             throw new FileNotFoundException('The vendor folder is missing.');
@@ -244,15 +207,14 @@ class ComposerHelper
     }
 
     /**
-     * @return string
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     public function getBinaryPath(): string
     {
-        $config = $this->getComposerConfig();
+        $config = $this->getComposerJsonContent();
 
         if (!$config && !is_dir($this->defaultBinPath)) {
             throw new FileNotFoundException('The bin folder is missing.');
@@ -262,13 +224,10 @@ class ComposerHelper
     }
 
     /**
-     * @param string $bin
-     *
-     * @return string
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     public function getBinary(string $bin): string
     {
@@ -281,18 +240,14 @@ class ComposerHelper
     }
 
     /**
-     * @param string $command
-     * @param array $args
-     *
-     * @return array
-     *
      * @throws \Exception
+     * @throws \JsonException
      */
     public function runCommand(string $command, array $args = []): array
     {
         $args = array_merge(
             ['command' => $command, '--format' => 'json', '-n', '-q'],
-            $args
+            $args,
         );
 
         $this->composer->doRun(new ArrayInput($args), $output = new ArrayOutput());
@@ -301,17 +256,14 @@ class ComposerHelper
 
         $json = array_pop($store);
 
-        return json_decode($json, true);
+        return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
     }
 
     /**
-     * @param string $file
-     *
-     * @return array
-     *
      * @throws \RuntimeException
      * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \JsonException
      */
     protected function getFileContent(string $file): array
     {
@@ -323,20 +275,10 @@ class ComposerHelper
             throw new EmptyFileException($file);
         }
 
-        $content = json_decode($json, true);
-
-        if (!$content || json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException(json_last_error_msg());
-        }
-
-        return $content;
+        return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
     }
 
     /**
-     * @param string $file
-     *
-     * @return void
-     *
      * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
      */
     protected function checkFileExisting(string $file): void
@@ -344,7 +286,7 @@ class ComposerHelper
         if (!file_exists($file) || !is_readable($file)) {
             throw new FileNotFoundException(
                 "File '{$file}' not found or you do not have permissions to read it\n".
-                'Have you run composer install?'
+                'Have you run composer install?',
             );
         }
     }
