@@ -135,7 +135,10 @@ class ComposerHelper
      */
     public function getOutdated(): array
     {
-        $result = $this->runCommand('outdated');
+        $result = $this->runCommand(
+            'outdated',
+            ['--format' => 'json', '-n', '-q'],
+        );
 
         return $result['installed'] ?? [];
     }
@@ -182,6 +185,28 @@ class ComposerHelper
         }
 
         return $requirements;
+    }
+
+    /**
+     * @throws \McMatters\ComposerHelper\Exceptions\FileNotFoundException
+     * @throws \McMatters\ComposerHelper\Exceptions\EmptyFileException
+     * @throws \JsonException
+     */
+    public function getPhpRequirement(): ?string
+    {
+        $requirements = $this->getRequirements();
+
+        return $requirements['php'] ?? null;
+    }
+
+    public function getComposer(): Application
+    {
+        return $this->composer;
+    }
+
+    public function getComposerVersion(): string
+    {
+        return $this->composer->getVersion();
     }
 
     public function getComposerJsonPath(): string
@@ -243,20 +268,19 @@ class ComposerHelper
      * @throws \Exception
      * @throws \JsonException
      */
-    public function runCommand(string $command, array $args = []): array
+    public function runCommand(string $command, array $args = []): array|string
     {
-        $args = array_merge(
-            ['command' => $command, '--format' => 'json', '-n', '-q'],
-            $args,
-        );
+        $args = array_merge(['command' => $command], $args);
 
         $this->composer->doRun(new ArrayInput($args), $output = new ArrayOutput());
 
         $store = $output->getStore();
 
-        $json = array_pop($store);
+        $response = array_pop($store);
 
-        return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        return ($args['--format'] ?? $args['-f'] ?? null) === 'json'
+            ? json_decode($response, true, 512, JSON_THROW_ON_ERROR)
+            : $response;
     }
 
     /**
