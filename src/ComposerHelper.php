@@ -115,9 +115,11 @@ class ComposerHelper
      */
     public function getInstalled(): array
     {
-        return $this->getFileContent(
+        $content = $this->getFileContent(
             "{$this->defaultVendorPath}/composer/installed.json",
         );
+
+        return $content['packages'] ?? $content;
     }
 
     /**
